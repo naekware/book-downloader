@@ -13,9 +13,6 @@ class LibGenBook:
         self.book_format = book_format
         self.mirror = mirror
 
-    def __str__(self):
-        return f"{self.author} / {self.title} / {self.book_format} / {self.mirror}"
-
     def get_direct_download(self) -> str:
         page = requests.get(self.mirror)
         soup = BeautifulSoup(page.content, "html.parser")
@@ -27,7 +24,13 @@ class LibGenBook:
             if "GET" in a_tag:
                 return a_tag.split('"')[1]
 
-        return "download"
+        return "Not found."
+
+    def __str__(self):
+        return (
+            f"{self.author} / {self.title} / {self.book_format} / {self.mirror}\nDirect"
+            f" Download: {self.get_direct_download()}"
+        )
 
 
 class LibGenParser:
@@ -42,12 +45,16 @@ class LibGenParser:
 
         author = (
             ""
-            if not (author_match := re.search(r"\>([\w\s\d]+)\<", str(cells[1])))
+            if not (author_match := re.search(r"\>([\w\s\d\.]+)\<", str(cells[1])))
             else author_match.group(1)
         )
         book = (
             ""
-            if not (book_match := re.search(r"\>([\w\s\d]+)\<", str(cells[2])))
+            if not (
+                book_match := re.search(
+                    r"\>([\w\s\d\:()-\.\'\!\?\,]+)\<", str(cells[2])
+                )
+            )
             else book_match.group(1)
         )
         book_format = (
@@ -66,18 +73,18 @@ class LibGenParser:
 
         return LibGenBook(author, book, book_format, mirror)
 
-    def parse_books(self):
+    def parse_books(self) -> list[LibGenBook]:
+        books: list[LibGenBook] = []
         page = requests.get(self.libgen_url)
         soup = BeautifulSoup(page.content, "html.parser")
         table_rows = soup.find_all("tr")
-        print("= == naek libgen parser == = ")
         for table_row in table_rows:
             cells = table_row.find_all("td")
             book = self.parse_row_cells(cells)
             if book:
-                print("====================")
-                print(f"Book: {book}")
-                print(f"Download: {book.get_direct_download()}")
+                books.append(book)
+
+        return books
 
 
 if __name__ == "__main__":
@@ -85,4 +92,7 @@ if __name__ == "__main__":
     parser.add_argument("--query", "-q")
     parser.add_argument("--num", "-n")
     args = parser.parse_args()
-    LibGenParser(f"{args.query}").parse_books()
+    books = LibGenParser(f"{args.query}").parse_books()
+    print("= == naek libgen parser == = ")
+    for book in books:
+        print(book, end="\n==================================================\n")
